@@ -1,0 +1,181 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using LibGit2Sharp;
+using LibGit2Sharp.Handlers;
+using System.IO;
+
+namespace TestRepository
+{
+    public partial class Form1 : Form
+    {
+        public Form1()
+        {
+            InitializeComponent();
+        }
+        private const string  _localRepoPath = @"D:\Onboarding\TestRepo\Hello";
+        private const string _publicPath = @"https://github.com/abrahamna/Hello";
+        private const string _owner = "xerox";
+        private const string _usename = "abrahamna";
+        private const string _password = "nedumthanam123";
+        private const string _emailID = "abrahamna@gmail.com";
+
+
+        private void btnCommit_Click(object sender, EventArgs e)
+        {
+            var repo = new Repository(_localRepoPath);
+            Identity id = new Identity(_owner, _emailID);
+            Signature sig = new Signature(
+                id, System.DateTime.Now );
+
+            GitRepositoryManager gitmanager = new GitRepositoryManager(
+                _usename, _password, _publicPath, _localRepoPath
+                );
+            gitmanager.CommitAllChanges("commited", sig);
+            MessageBox.Show("Changes Committed");
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            using (var repo = new Repository(_localRepoPath))
+            {
+                LibGit2Sharp.PushOptions options = new LibGit2Sharp.PushOptions();
+                options.CredentialsProvider = new CredentialsHandler(
+                    (url, usernameFromUrl, types) =>
+                        new UsernamePasswordCredentials()
+                        {
+                            Username = _usename,
+                            Password = _password
+                        });
+                repo.Network.Push(repo.Branches["master"], options);
+            }
+            MessageBox.Show("updated to Server");
+
+        }
+
+        //public void Sync()
+        //{
+        //    using (var repo = new Repository(_localRepoPath))
+        //    {
+        //        repo.Stage("*");
+        //        Identity id = new Identity("Abraham", "abrahamna@gmail.com");
+        //        Signature sig = new Signature(
+        //            id, System.DateTime.Now
+        //            );
+
+        //        repo.Commit("test commit", sig, sig);
+
+        //        Remote remote = repo.Network.Remotes["origin"];
+        //        var options = new PushOptions();
+
+        //        options.CredentialsProvider = new CredentialsHandler(
+        //        (url, usernameFromUrl, types) =>
+        //            new UsernamePasswordCredentials()
+        //            {
+        //                Username = "abrahamna",
+        //                Password = "nedumthanam123"
+        //            });
+        //    }
+
+
+
+        //}
+
+       private void btnFetch_Click(object sender, EventArgs e)
+        {
+           // var repoUrl = "https://github.com/abrahamna/Hello";
+
+            using (var repo = new Repository(_localRepoPath))
+            {
+                foreach (Remote remote in repo.Network.Remotes)
+                {
+                    PullOptions options = new PullOptions();
+
+        options.FetchOptions = new FetchOptions();
+        options.MergeOptions = new MergeOptions();
+
+        // ! Only for trying to fix the bug. Should not be here
+        options.MergeOptions.FileConflictStrategy = CheckoutFileConflictStrategy.Theirs;
+         var result = repo.Network.Pull(new Signature(_usename, _emailID, new DateTimeOffset(DateTime.Now)), options);
+    }
+}
+MessageBox.Show("Taken latest from Server");
+        }
+
+        private void btnCreate_Click(object sender, EventArgs e)
+        {
+            string fileName = _localRepoPath + "\\XEROX_" + System.DateTime.Now.ToFileTime().ToString() + ".txt";
+
+            // Check if file already exists. If yes, delete it. 
+            if (!File.Exists(fileName))
+            {
+
+                // Create a new file 
+                using (FileStream fs = File.Create(fileName))
+                {
+                    // Add some text to file
+                    Byte[] title = new UTF8Encoding(true).GetBytes("New Text File");
+                    fs.Write(title, 0, title.Length);
+                    byte[] author = new UTF8Encoding(true).GetBytes("xerox");
+                    fs.Write(author, 0, author.Length);
+                }
+            }
+        }
+    }
+
+    public class GitRepositoryManager
+        {
+            private readonly string _repoSource;
+            private readonly UsernamePasswordCredentials _credentials;
+            private readonly DirectoryInfo _localFolder;
+
+            /// <summary>
+            /// Initializes a new instance of the <see cref="GitRepositoryManager" /> class.
+            /// </summary>
+            /// <param name="username">The Git credentials username.</param>
+            /// <param name="password">The Git credentials password.</param>
+            /// <param name="gitRepoUrl">The Git repo URL.</param>
+            /// <param name="localFolder">The full path to local folder.</param>
+            public GitRepositoryManager(string username, string password, string gitRepoUrl, string localFolder)
+            {
+                var folder = new DirectoryInfo(localFolder);
+
+                if (!folder.Exists)
+                {
+                    throw new Exception(string.Format("Source folder '{0}' does not exist.", _localFolder));
+                }
+
+                _localFolder = folder;
+
+                _credentials = new UsernamePasswordCredentials
+                {
+                    Username = username,
+                    Password = password
+                };
+
+                _repoSource = gitRepoUrl;
+            }
+
+            /// <summary>
+            /// Commits all changes.
+            /// </summary>
+            /// <param name="message">The message.</param>
+            /// <exception cref="System.Exception"></exception>
+            public void CommitAllChanges(string message, Signature sig)
+            {
+                using (var repo = new Repository(_localFolder.FullName))
+                {
+                    var files = _localFolder.GetFiles("*", SearchOption.AllDirectories).Select(f => f.FullName);
+                    repo.Stage(files);
+                    repo.Commit(message, sig, sig);
+                }
+            }
+        }
+    }
+
